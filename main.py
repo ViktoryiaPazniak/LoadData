@@ -1,10 +1,11 @@
 import json
-from typing import List, Dict, Any
-import pyodbc
-import xml.etree.ElementTree as ET
-import xml.dom.minidom as minidom
-from config import server, database
 import logging
+import xml.dom.minidom as minidom
+import xml.etree.ElementTree as ET
+from typing import Any, Dict, List
+
+import pyodbc
+from config import database, server
 
 
 class DataLoader:
@@ -15,22 +16,51 @@ class DataLoader:
         logging.info("The database connection was opened.")
 
     def create_database(self) -> None:
+        """
+        Creates a database named 'Dormitory' if it does not already exist.
+
+        Raises:
+            Exception: If an error occurs during the database creation.
+
+        Returns:
+            None: This method does not return any value.
+        """
+
         try:
-            self.cursor.execute("""
+            self.cursor.execute(
+                """
                 IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'Dormitory')
                 BEGIN
                     CREATE DATABASE Dormitory;
                 END;
-            """)
+            """
+            )
 
             logging.info("The database has been successfully created.")
 
         except Exception as e:
-            logging.error(f"An error occurred while creating database: {e}", exc_info=True)
+            logging.error(
+                f"An error occurred while creating database: {e}",
+                exc_info=True,
+            )
 
     def create_tables(self) -> None:
+        """
+        Creates the 'Rooms' and 'Students' tables in the database if they do not already exist.
+        The 'Rooms' table has columns 'RoomID' (INT, PRIMARY KEY) and 'RoomName' (NVARCHAR(9)).
+        The 'Students' table has columns 'Birthday' (DATETIMEOFFSET), 'StudentID' (INT, PRIMARY KEY),
+        'Name' (NVARCHAR(50)), 'RoomID' (INT, FOREIGN KEY REFERENCES Rooms(RoomID)), and 'Sex' (NVARCHAR(1)).
+
+        Raises:
+            Exception: If an error occurs during the table creation.
+
+        Returns:
+            None: This method does not return any value.
+        """
+
         try:
-            self.cursor.execute("""
+            self.cursor.execute(
+                """
                 IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Rooms')
                 BEGIN
                     CREATE TABLE Rooms (
@@ -38,9 +68,11 @@ class DataLoader:
                         RoomName NVARCHAR(9)
                     );
                 END;
-            """)
+            """
+            )
 
-            self.cursor.execute("""
+            self.cursor.execute(
+                """
                 IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Rooms')
                 BEGIN
                     CREATE TABLE Students (
@@ -52,18 +84,34 @@ class DataLoader:
                         FOREIGN KEY (RoomID) REFERENCES Rooms(RoomID)
                     );
                 END;
-            """)
+            """
+            )
 
             self.connection.commit()
             logging.info("The tables have been successfully created.")
 
         except Exception as e:
-            logging.error(f"An error occurred while creating tables: {e}", exc_info=True)
+            logging.error(
+                f"An error occurred while creating tables: {e}", exc_info=True
+            )
 
     def load_data(self, students: str, rooms: str) -> None:
-        """Reads data from JSON files and loads into the database."""
+        """
+        Loads data from JSON files into the 'Students' and 'Rooms' tables in the database.
+
+        Args:
+            students (str): The file path to the JSON file containing student data.
+            rooms (str): The file path to the JSON file containing room data.
+
+        Raises:
+            Exception: If an error occurs during the data loading process.
+
+        Returns:
+            None: This method does not return any value.
+        """
+
         try:
-            with open(rooms, 'r') as file:
+            with open(rooms, "r") as file:
                 rooms_data = json.load(file)
 
             for room in rooms_data:
@@ -74,12 +122,16 @@ class DataLoader:
                 existing_room = self.cursor.fetchone()
 
                 if not existing_room:
-                    self.cursor.execute("""
+                    self.cursor.execute(
+                        """
                         INSERT INTO Rooms (RoomID, RoomName)
                         VALUES (?, ?)
-                    """, room["id"], room["name"])
+                    """,
+                        room["id"],
+                        room["name"],
+                    )
 
-            with open(students, 'r') as file:
+            with open(students, "r") as file:
                 students_data = json.load(file)
 
             for student in students_data:
@@ -90,19 +142,38 @@ class DataLoader:
                 existing_student = self.cursor.fetchone()
 
                 if not existing_student:
-                    self.cursor.execute("""
+                    self.cursor.execute(
+                        """
                         INSERT INTO Students (Birthday, StudentID, Name, RoomID, Sex)
                         VALUES (?, ?, ?, ?, ?)
-                    """, student["birthday"], student["id"], student["name"], student["room"], student["sex"])
+                    """,
+                        student["birthday"],
+                        student["id"],
+                        student["name"],
+                        student["room"],
+                        student["sex"],
+                    )
 
             self.connection.commit()
             logging.info("Data has been successfully loaded.")
 
         except Exception as e:
-            logging.error(f"An error occurred while loading data: {e}", exc_info=True)
+            logging.error(
+                f"An error occurred while loading data: {e}", exc_info=True
+            )
 
     def query_rooms_and_students_count(self) -> List[Dict[str, int]]:
-        """Query: List of rooms and number of students in each of them"""
+        """
+        Queries the database to retrieve a list of rooms and the count of students in each room.
+
+        Returns:
+            List[Dict[str, int]]: A list of dictionaries, where each dictionary represents a room
+            with its corresponding 'RoomID' and 'StudentsCount'.
+
+        Raises:
+            Exception: If an error occurs during the database query.
+        """
+
         try:
             query = """
                 SELECT r.RoomID, COUNT(s.StudentID) as StudentsCount
@@ -114,11 +185,15 @@ class DataLoader:
             self.cursor.execute(query)
             query_result = self.cursor.fetchall()
 
-            rooms_and_students_count_list = [dict(RoomID=room_id, StudentsCount=students_count)
-                                             for room_id, students_count in query_result]
+            rooms_and_students_count_list = [
+                dict(RoomID=room_id, StudentsCount=students_count)
+                for room_id, students_count in query_result
+            ]
 
-            logging.info("""The request to get a list of rooms and the number of students in each room was completed 
-            successfully.""")
+            logging.info(
+                """The request to get a list of rooms and the number of students in each room was completed 
+            successfully."""
+            )
 
             return rooms_and_students_count_list
 
@@ -127,7 +202,20 @@ class DataLoader:
             return []
 
     def query_min_avg_age_rooms(self, limit: int = 5) -> List[Dict[str, int]]:
-        """"Request: 5 rooms with the smallest average age of students"""
+        """
+        Retrieves a list of rooms with the smallest average age of students.
+
+        Args:
+            limit (int, optional): The number of rooms to retrieve. Defaults to 5.
+
+        Returns:
+            List[Dict[str, int]]: A list of dictionaries, where each dictionary represents a room
+            with its corresponding 'RoomID' and 'AvgAge' (average age of students).
+
+        Raises:
+            Exception: If an error occurs during the database query.
+        """
+
         try:
             query = """
                 SELECT TOP({}) r.RoomID, AVG(DATEDIFF(YEAR, s.Birthday, GETDATE())) as AvgAge
@@ -135,7 +223,9 @@ class DataLoader:
                 JOIN Students s ON r.RoomID = s.RoomID
                 GROUP BY r.RoomID
                 ORDER BY AvgAge
-            """.format(limit)
+            """.format(
+                limit
+            )
 
             self.cursor.execute(query)
             query_result = self.cursor.fetchall()
@@ -145,8 +235,10 @@ class DataLoader:
                 for room_id, avg_age in query_result
             ]
 
-            logging.info("""The request to get a list of 5 rooms with the smallest average age of students was completed 
-            successfully.""")
+            logging.info(
+                """The request to get a list of 5 rooms with the smallest average age of students was completed 
+            successfully."""
+            )
 
             return query_min_avg_age_rooms_list
 
@@ -154,8 +246,23 @@ class DataLoader:
             logging.error(f"Error executing the request: {e}", exc_info=True)
             return []
 
-    def query_max_age_difference_rooms(self, limit: int = 5) -> List[Dict[str, int]]:
-        """"Request: 5 rooms with the largest age difference among students"""
+    def query_max_age_difference_rooms(
+        self, limit: int = 5
+    ) -> List[Dict[str, int]]:
+        """
+        Retrieves a list of rooms with the largest age difference among students.
+
+        Args:
+            limit (int, optional): The number of rooms to retrieve. Defaults to 5.
+
+        Returns:
+            List[Dict[str, int]]: A list of dictionaries, where each dictionary represents a room
+            with its corresponding 'RoomID' and 'AgeDifference' (largest age difference among students).
+
+        Raises:
+            Exception: If an error occurs during the database query.
+        """
+
         try:
             query = """
                 SELECT TOP({}) r.RoomID, 
@@ -164,7 +271,9 @@ class DataLoader:
                 JOIN Students s ON r.RoomID = s.RoomID
                 GROUP BY r.RoomID
                 ORDER BY AgeDifference DESC
-            """.format(limit)
+            """.format(
+                limit
+            )
 
             self.cursor.execute(query)
             query_result = self.cursor.fetchall()
@@ -174,8 +283,10 @@ class DataLoader:
                 for room_id, age_difference in query_result
             ]
 
-            logging.info("""The request to get a list of 5 rooms with the largest age difference among the students was 
-            completed successfully.""")
+            logging.info(
+                """The request to get a list of 5 rooms with the largest age difference among the students was 
+            completed successfully."""
+            )
 
             return query_max_age_difference_rooms_list
 
@@ -184,7 +295,17 @@ class DataLoader:
             return []
 
     def query_gender_mismatch_rooms(self) -> List[Dict[str, int]]:
-        """Query: List of rooms where mixed-sex students live"""
+        """
+        Retrieves a list of rooms where mixed-sex students live.
+
+        Returns:
+            List[Dict[str, int]]: A list of dictionaries, where each dictionary represents a room
+            with its corresponding 'RoomID'.
+
+        Raises:
+            Exception: If an error occurs during the database query.
+        """
+
         try:
             query = """
                 SELECT r.RoomID
@@ -201,8 +322,10 @@ class DataLoader:
                 dict(RoomID=row[0]) for row in query_result
             ]
 
-            logging.info("""The request to get a list of 5 rooms where mixed-sex students live was completed 
-            successfully.""")
+            logging.info(
+                """The request to get a list of 5 rooms where mixed-sex students live was completed 
+            successfully."""
+            )
 
             return query_gender_mismatch_rooms_list
 
@@ -211,7 +334,21 @@ class DataLoader:
             return []
 
     def optimize_queries(self) -> None:
-        """Optimizing Queries Using Indexes"""
+        """
+        Optimizes queries by creating indexes on specific fields in the Students table.
+
+        Indexes:
+        - 'idx_Students_RoomID' on the RoomID field in the Students table.
+        - 'idx_Students_RoomID_Birthday' on the RoomID and Birthday fields in the Students table.
+        - 'idx_Students_RoomID_Birthday_Sex' on the RoomID, Birthday, and Sex fields in the Students table.
+
+        Raises:
+            Exception: If an error occurs during the index creation process.
+
+        Returns:
+            None: This method does not return any value.
+        """
+
         try:
             # Index on the RoomID field in the Students table
             index_students_room_id_query = """
@@ -253,10 +390,18 @@ class DataLoader:
             logging.info("Index creation completed successfully.")
 
         except Exception as e:
-            logging.error(f"An error occurred while creating indexes: {e}", exc_info=True)
+            logging.error(
+                f"An error occurred while creating indexes: {e}", exc_info=True
+            )
 
     def close_connection(self) -> None:
-        """Closes the database connection if it is open."""
+        """
+        Closes the database connection if it is open.
+
+        Returns:
+            None: This method does not return any value.
+        """
+
         if self.connection:
             self.connection.close()
 
@@ -266,22 +411,37 @@ class DataLoader:
 class DocumentWriter:
     @staticmethod
     def export_result(export_result: List[Dict[str, Any]]) -> None:
-        try:
-            format_type = input("Enter the file format to save (xml or json): ")
+        """
+        Exports the query result to a file in either JSON or XML format.
 
-            if format_type.lower() != 'xml' and format_type.lower() != 'json':
+        Args:
+            export_result (List[Dict[str, Any]]): The result to be exported.
+
+        Returns:
+            None: This method does not return any value.
+
+        Raises:
+            Exception: If an error occurs during the export process.
+        """
+
+        try:
+            format_type = input(
+                "Enter the file format to save (xml or json): "
+            )
+
+            if format_type.lower() != "xml" and format_type.lower() != "json":
                 print("Unsupported format. Only XML and JSON are supported.")
 
-            if format_type.lower() == 'json':
+            if format_type.lower() == "json":
                 json_result = json.dumps(export_result, indent=2)
 
-                with open('result.json', 'w') as json_file:
+                with open("result.json", "w") as json_file:
                     json_file.write(json_result)
 
-            if format_type.lower() == 'xml':
+            if format_type.lower() == "xml":
                 # Converting the result to XML format
-                root_element_name = 'Records'
-                item_element_name = 'Data'
+                root_element_name = "Records"
+                item_element_name = "Data"
 
                 root = ET.Element(root_element_name)
 
@@ -291,29 +451,44 @@ class DocumentWriter:
                         element = ET.SubElement(item_element, key)
                         element.text = str(value)
 
-                filename = input("Enter the file name in filename.xml format: ")
+                filename = input(
+                    "Enter the file name in filename.xml format: "
+                )
 
-                if not filename.endswith('.xml'):
-                    print("Invalid file format. Please provide a filename with .xml extension.")
+                if not filename.endswith(".xml"):
+                    print(
+                        "Invalid file format. Please provide a filename with .xml extension."
+                    )
                 else:
                     # Convert to indented line
-                    xml_string = minidom.parseString(ET.tostring(root)).toprettyxml(indent='  ')
+                    xml_string = minidom.parseString(
+                        ET.tostring(root)
+                    ).toprettyxml(indent="  ")
 
-                    with open(filename, 'w', encoding='utf-8') as xml_file:
+                    with open(filename, "w", encoding="utf-8") as xml_file:
                         xml_file.write(xml_string)
 
             logging.info("Writing data to the file was successful.")
 
         except Exception as e:
-            logging.error(f"An error occurred while writing data to the file: {e}", exc_info=True)
+            logging.error(
+                f"An error occurred while writing data to the file: {e}",
+                exc_info=True,
+            )
 
 
 if __name__ == "__main__":
     try:
-        logging.basicConfig(level=logging.INFO, filename="py_log.log", filemode="w",
-                            format="%(%(levelname)s %(message)s")
+        logging.basicConfig(
+            level=logging.INFO,
+            filename="py_log.log",
+            filemode="w",
+            format="%(%(levelname)s %(message)s",
+        )
 
-        connection_string = f'DRIVER={{SQL Server}};SERVER={server};DATABASE={database}'
+        connection_string = (
+            f"DRIVER={{SQL Server}};SERVER={server};DATABASE={database}"
+        )
 
         data_loader = DataLoader(connection_string)
 
@@ -321,20 +496,28 @@ if __name__ == "__main__":
 
         data_loader.create_tables()
 
-        students_file_route = input("Enter the full path to the students.json file: ")
-        rooms_file_route = input("Enter the full path to the rooms.json file: ")
+        students_file_route = input(
+            "Enter the full path to the students.json file: "
+        )
+        rooms_file_route = input(
+            "Enter the full path to the rooms.json file: "
+        )
 
         data_loader.load_data(students_file_route, rooms_file_route)
 
         document_writer = DocumentWriter()
 
-        query_rooms_and_students_count = data_loader.query_rooms_and_students_count()
+        query_rooms_and_students_count = (
+            data_loader.query_rooms_and_students_count()
+        )
         document_writer.export_result(query_rooms_and_students_count)
 
         query_min_avg_age_rooms = data_loader.query_min_avg_age_rooms()
         document_writer.export_result(query_min_avg_age_rooms)
 
-        query_max_age_difference_rooms = data_loader.query_max_age_difference_rooms()
+        query_max_age_difference_rooms = (
+            data_loader.query_max_age_difference_rooms()
+        )
         document_writer.export_result(query_max_age_difference_rooms)
 
         query_gender_mismatch_rooms = data_loader.query_gender_mismatch_rooms()
