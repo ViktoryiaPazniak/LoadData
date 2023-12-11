@@ -1,9 +1,23 @@
 repos:
--   repo: https://github.com/ViktoryiaPazniak/LoadData
-    rev: v2.3.0
+-   repo: local
     hooks:
-    -   id: trailing-whitespace
-    -   id: check-json
-    -   id: end-of-file-fixer
-    -   id: name-tests-test
-    -   id: requirements-txt-fixer
+    -   id: isort
+        name: isort
+        entry: isort --settings-file ./linters/.isort.cfg .
+        language: system
+        types: [python]
+        pass_filenames: false
+
+    -   id: black
+        name: black
+        entry: black --config ./linters/.black .
+        language: system
+        types: [ python ]
+        pass_filenames: false
+
+    -   id: flake8
+        name: flake8
+        entry: flake8 --config ./linters/.flake8 .
+        language: system
+        types: [ python ]
+        pass_filenames: false
