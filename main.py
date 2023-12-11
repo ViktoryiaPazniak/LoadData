@@ -4,12 +4,15 @@ import pyodbc
 import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
 from config import server, database
+import logging
 
 
 class DataLoader:
     def __init__(self, connection_string: str):
         self.connection = pyodbc.connect(connection_string)
         self.cursor = self.connection.cursor()
+
+        logging.info("The database connection was opened.")
 
     def create_database(self) -> None:
         try:
@@ -20,8 +23,10 @@ class DataLoader:
                 END;
             """)
 
+            logging.info("The database has been successfully created.")
+
         except Exception as e:
-            print(f"An error occurred while creating database: {e}")
+            logging.error(f"An error occurred while creating database: {e}", exc_info=True)
 
     def create_tables(self) -> None:
         try:
@@ -50,9 +55,10 @@ class DataLoader:
             """)
 
             self.connection.commit()
+            logging.info("The tables have been successfully created.")
 
         except Exception as e:
-            print(f"An error occurred while creating tables: {e}")
+            logging.error(f"An error occurred while creating tables: {e}", exc_info=True)
 
     def load_data(self, students: str, rooms: str) -> None:
         """Reads data from JSON files and loads into the database."""
@@ -90,9 +96,10 @@ class DataLoader:
                     """, student["birthday"], student["id"], student["name"], student["room"], student["sex"])
 
             self.connection.commit()
+            logging.info("Data has been successfully loaded.")
 
         except Exception as e:
-            print(f"An error occurred while loading data: {e}")
+            logging.error(f"An error occurred while loading data: {e}", exc_info=True)
 
     def query_rooms_and_students_count(self) -> List[Dict[str, int]]:
         """Query: List of rooms and number of students in each of them"""
@@ -110,10 +117,14 @@ class DataLoader:
             rooms_and_students_count_list = [dict(RoomID=room_id, StudentsCount=students_count)
                                              for room_id, students_count in query_result]
 
+            logging.info("""The request to get a list of rooms and the number of students in each room was completed 
+            successfully.""")
+
             return rooms_and_students_count_list
 
         except Exception as e:
-            print(f"Error executing the request: {e}")
+            logging.error(f"Error executing the request: {e}", exc_info=True)
+            return []
 
     def query_min_avg_age_rooms(self, limit: int = 5) -> List[Dict[str, int]]:
         """"Request: 5 rooms with the smallest average age of students"""
@@ -134,10 +145,14 @@ class DataLoader:
                 for room_id, avg_age in query_result
             ]
 
+            logging.info("""The request to get a list of 5 rooms with the smallest average age of students was completed 
+            successfully.""")
+
             return query_min_avg_age_rooms_list
 
         except Exception as e:
-            print(f"Error executing the request: {e}")
+            logging.error(f"Error executing the request: {e}", exc_info=True)
+            return []
 
     def query_max_age_difference_rooms(self, limit: int = 5) -> List[Dict[str, int]]:
         """"Request: 5 rooms with the largest age difference among students"""
@@ -159,10 +174,14 @@ class DataLoader:
                 for room_id, age_difference in query_result
             ]
 
+            logging.info("""The request to get a list of 5 rooms with the largest age difference among the students was 
+            completed successfully.""")
+
             return query_max_age_difference_rooms_list
 
         except Exception as e:
-            print(f"Error executing the request: {e}")
+            logging.error(f"Error executing the request: {e}", exc_info=True)
+            return []
 
     def query_gender_mismatch_rooms(self) -> List[Dict[str, int]]:
         """Query: List of rooms where mixed-sex students live"""
@@ -182,10 +201,14 @@ class DataLoader:
                 dict(RoomID=row[0]) for row in query_result
             ]
 
+            logging.info("""The request to get a list of 5 rooms where mixed-sex students live was completed 
+            successfully.""")
+
             return query_gender_mismatch_rooms_list
 
         except Exception as e:
-            print(f"Error executing the request: {e}")
+            logging.error(f"Error executing the request: {e}", exc_info=True)
+            return []
 
     def optimize_queries(self) -> None:
         """Optimizing Queries Using Indexes"""
@@ -227,13 +250,17 @@ class DataLoader:
 
             self.connection.commit()
 
+            logging.info("Index creation completed successfully.")
+
         except Exception as e:
-            print(f"Error adding indexes: {e}")
+            logging.error(f"An error occurred while creating indexes: {e}", exc_info=True)
 
     def close_connection(self) -> None:
         """Closes the database connection if it is open."""
         if self.connection:
             self.connection.close()
+
+        logging.info("The database connection was closed.")
 
 
 class DocumentWriter:
@@ -275,12 +302,17 @@ class DocumentWriter:
                     with open(filename, 'w', encoding='utf-8') as xml_file:
                         xml_file.write(xml_string)
 
+            logging.info("Writing data to the file was successful.")
+
         except Exception as e:
-            print(f"Error while uploading result: {e}")
+            logging.error(f"An error occurred while writing data to the file: {e}", exc_info=True)
 
 
 if __name__ == "__main__":
     try:
+        logging.basicConfig(level=logging.INFO, filename="py_log.log", filemode="w",
+                            format="%(%(levelname)s %(message)s")
+
         connection_string = f'DRIVER={{SQL Server}};SERVER={server};DATABASE={database}'
 
         data_loader = DataLoader(connection_string)
